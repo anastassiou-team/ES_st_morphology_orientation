@@ -768,8 +768,73 @@ def MMR (PhaseList):
     sumation = sumation/np.max(sumation)
     return sumation, 1-np.mean(sumation)
         
-def Plot_Displacement(time_displace = False, entrainment = False, num_bins = 15):
-    if entrainment:
+def Plot_Displacement(time_displace = False, entrainment = False, preentrain = False, prestrength = 2, num_bins = 15):
+    if preentrain:
+        num_bins = 20
+
+        fig, ax = plt.subplots(4,6,figsize = (14,11), subplot_kw={'projection': 'polar'})
+        for b, phase in enumerate([2,4,6,8]):
+            vls = []
+            mmrs = []
+            for s, spike_move in enumerate([0,10,20,30]):
+                values = np.full(num_bins, 100)
+                angles = np.linspace(0, 2 * np.pi, num_bins, endpoint=False)
+                # preentrain
+                bins_away = -(np.sin(angles)*prestrength).astype(int)
+                spikes_moved = np.abs(np.sin(angles))*20
+                for i in range(len(values)):
+                    values[i] -= spikes_moved[i]
+                    if bins_away[i]>0 and i<len(values)-bins_away[i]:
+                        values[i+bins_away[i]] += spikes_moved[i]
+                    elif bins_away[i]<0 and i>=bins_away[i]:
+                        values[i+bins_away[i]] += spikes_moved[i]
+                    elif bins_away[i]>0:
+                        values[(i+bins_away[i])%len(values)] += spikes_moved[i]
+                    elif bins_away[i]<0:
+                        values[len(values)+i+bins_away[i]] += spikes_moved[i]
+                values = np.roll(values,phase)
+                if s>0:
+                    bins_away = -(np.sin(angles)*4).astype(int)
+                    spikes_moved = np.abs(np.sin(angles))*spike_move
+                    for i in range(len(values)):
+                        values[i] -= spikes_moved[i]
+                        if bins_away[i]>0 and i<len(values)-bins_away[i]:
+                            values[i+bins_away[i]] += spikes_moved[i]
+                        elif bins_away[i]<0 and i>=bins_away[i]:
+                            values[i+bins_away[i]] += spikes_moved[i]
+                        elif bins_away[i]>0:
+                            values[(i+bins_away[i])%len(values)] += spikes_moved[i]
+                        elif bins_away[i]<0:
+                            values[len(values)+i+bins_away[i]] += spikes_moved[i]
+                Phases = []
+                for i in range(len(angles)):
+                    for j in range(values[i]):
+                        Phases.append(angles[i]*180/np.pi)
+                radians = np.asarray(Phases)*np.pi/180
+                mean_phase_rad = pcs.descriptive.mean(np.array(radians))
+                mean_phase_angle = mean_phase_rad*(180 / np.pi)
+                mean_pvalue_z=pcs.rayleigh(np.array(radians))
+                mean_vector_length = pcs.descriptive.vector_strength(np.array(radians))
+                cd, mmr = MMR(Phases)
+                ax[b][s].bar(angles, values, width=2 * np.pi / num_bins, bottom=0.0, color='b', edgecolor='black')
+                ax[b][s].grid(False)
+                ax[b][s].set_yticklabels([])
+                if b==0:
+                    ax[b][s].set_title('Case: '+str(s%4)+'\nRoll: '+str(phase)+'\nStrength: '+str(spike_move))
+                ax[b][s].set_xlabel('VL: ' + str(round(mean_vector_length,3))+'\nMMR: ' + str(round(mmr,3)))
+                vls.append(round(mean_vector_length,3))
+                mmrs.append(round(mmr,3))
+            ax[b][4].axis('off')
+            ax[b][5].axis('off')
+            ax1 = fig.add_subplot(4,3,3*(b+1))
+            ax1.plot(vls, label = 'VL')
+            ax1.plot(mmrs, label = 'MMR')
+            ax1.set_xlabel('Case')
+            ax1.set_ylabel('Length')
+            ax1.legend()
+        plt.tight_layout()
+        plt.show()
+    elif entrainment:
         num_bins = 20
 
         fig, ax = plt.subplots(2,6,figsize = (12,6), subplot_kw={'projection': 'polar'})
