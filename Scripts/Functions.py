@@ -1,6 +1,7 @@
 from scipy.optimize import curve_fit
 from scipy.stats import norm
 from collections import Counter
+from statannot import add_stat_annotation
 from matplotlib import colors
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
@@ -848,3 +849,188 @@ def Plot_Displacement(time_displace = False, entrainment = False, num_bins = 15)
         ax[1].set_title('With ES')
         plt.tight_layout()
         plt.show()
+        
+def Plot_MMR_vs_FR (grouped = False, bytype = False, annotate = False, point = False):
+    if point:
+        df = pd.read_pickle('../Results/Result_Tables/G.pkl')
+        control = pd.read_pickle('../Results/Result_Tables/G.pkl').groupby('ES_current(uA)').get_group(0)
+        max_amp = 0.2
+    else:
+        df = pd.read_pickle('../Results/Result_Tables/F.pkl')
+        control = pd.read_pickle('../Results/Result_Tables/F.pkl').groupby('ES_current(uA)').get_group(0)
+        max_amp = 500
+
+    df['PM'] = 0
+    targets = pd.read_csv('../Required_files/Calibrated.csv')
+    tar = targets.set_index('cell_id')['PM']
+    if bytype:
+        for i in range(len(df)):
+            df.iloc[i,-1] = tar.loc[int(df.iloc[i,1])]
+        if grouped:
+            fig, ax = plt.subplots(1,1, figsize = (14,4))
+            df.loc[(df['Cell_Type'] == 'ITL46') & (df['ES_frequency(hz)']==8), 'PM'] = 61
+            df.loc[(df['Cell_Type'] == 'ITL46') & (df['ES_frequency(hz)']==28), 'PM'] = 62
+            df.loc[(df['Cell_Type'] == 'ITL46') & (df['ES_frequency(hz)']==140), 'PM'] = 63
+            df.loc[(df['Cell_Type'] == 'ITL35') & (df['ES_frequency(hz)']==8), 'PM'] = 65
+            df.loc[(df['Cell_Type'] == 'ITL35') & (df['ES_frequency(hz)']==28), 'PM'] = 66
+            df.loc[(df['Cell_Type'] == 'ITL35') & (df['ES_frequency(hz)']==140), 'PM'] = 67
+            df.loc[(df['Cell_Type'] == 'ITL23') & (df['ES_frequency(hz)']==8), 'PM'] = 69
+            df.loc[(df['Cell_Type'] == 'ITL23') & (df['ES_frequency(hz)']==28), 'PM'] = 70
+            df.loc[(df['Cell_Type'] == 'ITL23') & (df['ES_frequency(hz)']==140), 'PM'] = 71
+            df.loc[(df['Cell_Type'] == 'PVALB') & (df['ES_frequency(hz)']==8), 'PM'] = 73
+            df.loc[(df['Cell_Type'] == 'PVALB') & (df['ES_frequency(hz)']==28), 'PM'] = 74
+            df.loc[(df['Cell_Type'] == 'PVALB') & (df['ES_frequency(hz)']==140), 'PM'] = 75
+            df.loc[(df['Cell_Type'] == 'SST') & (df['ES_frequency(hz)']==8), 'PM'] = 77
+            df.loc[(df['Cell_Type'] == 'SST') & (df['ES_frequency(hz)']==28), 'PM'] = 78
+            df.loc[(df['Cell_Type'] == 'SST') & (df['ES_frequency(hz)']==140), 'PM'] = 79
+            df.loc[(df['Cell_Type'] == 'VIP') & (df['ES_frequency(hz)']==8), 'PM'] = 81
+            df.loc[(df['Cell_Type'] == 'VIP') & (df['ES_frequency(hz)']==28), 'PM'] = 82
+            df.loc[(df['Cell_Type'] == 'VIP') & (df['ES_frequency(hz)']==140), 'PM'] = 83
+            df.loc[:,'PM'] -= 59
+            ax = [ax]
+            all_results = []
+        else:
+            fig, ax = plt.subplots(4,1, figsize = (8,10))
+        for i,freq in enumerate([0,8,28,140]):
+            if grouped:
+                i=0
+            if freq==0:
+                dfg = df.groupby('ES_current(uA)').get_group(0)
+                dfg.loc[:,'PM'] -= 1
+                dfg = dfg.groupby('ES_frequency(hz)').get_group(8).groupby('Cell_Type')
+            else:
+                dfg = df.groupby('ES_current(uA)').get_group(max_amp)
+                dfg = dfg.groupby('ES_frequency(hz)').get_group(freq).groupby('Cell_Type')
+            for name, dft in dfg:
+                pf = dft.loc[dft.groupby('Cell_ID')['MMR'].idxmax()]
+                if freq==8 or not grouped:
+                    ax[i].plot(pf.loc[:,'PM']-1, pf.loc[:,'MMR'], marker = '.', linestyle = 'none',color=type_colors_A[name], label = name)
+                else:
+                    ax[i].plot(pf.loc[:,'PM']-1, pf.loc[:,'MMR'], marker = '.', linestyle = 'none',color=type_colors_A[name], label = None)
+                if grouped:
+                    for k in range(len(pf)):
+                        all_results.append([name, pf['PM'].iloc[k], pf['MMR'].iloc[k]])
+            # Add labels and title
+            ax[i].set_xlabel('Firing rate (Hz)', fontsize = 16)
+            ax[i].set_ylabel('MMR', fontsize = 16)
+            ax[i].set_ylim(0,1)
+            ax[i].set_title('ES Frequency ' + str(freq) + ' Hz', fontsize = 16)
+            if grouped: 
+                ax[i].set_xticks(np.arange(24))
+                ax[i].set_xticklabels(['Control','8 Hz','28 Hz\n-- ITL46 --','140 Hz',
+                                       'Control','8 Hz','28 Hz\n-- ITL35 --','140 Hz',
+                                       'Control','8 Hz','28 Hz\n-- ITL23 --','140 Hz',
+                                       'Control','8 Hz','28 Hz\n-- PVALB --','140 Hz',
+                                       'Control','8 Hz','28 Hz\n-- SST --','140 Hz',
+                                       'Control','8 Hz','28 Hz\n-- VIP --','140 Hz']) 
+                ax[i].set_xlabel('State', fontsize = 16)
+                ax[i].set_title(' ')
+        if grouped:
+            anot_res = []
+            rf = pd.DataFrame(all_results, columns = ['Type','Group','MMR']).groupby('Group')
+            for grp in np.arange(24)+1:
+                A = np.array(rf.get_group(grp)['MMR'])
+                q1 = np.percentile(A, 25)
+                median = np.percentile(A, 50)
+                q3 = np.percentile(A, 75)
+                iqr = q3 - q1
+                whisker_low = max(min(A), q1 - 1.5 * iqr)
+                whisker_high = min(max(A), q3 + 1.5 * iqr)
+                outliers = [d for d in A if d < whisker_low or d > whisker_high]
+                box = plt.Rectangle((grp - 0.5 / 2-1, q1), 0.5, q3 - q1, color='k', lw=2, zorder=3)
+                ax[0].add_patch(box)
+                ax[0].plot([grp - 0.5 / 2-1, grp + 0.5 / 2-1], [median, median], color='k', lw=2, zorder=4)
+                ax[0].plot([grp-1, grp-1], [whisker_low, q1], color='k', lw=2, zorder=2)
+                ax[0].plot([grp-1, grp-1], [q3, whisker_high], color='k', lw=2, zorder=2)
+                anot_res.append([grp, whisker_low, q1, median, q3, whisker_high])
+            if annotate:
+                test_results = add_stat_annotation(ax[0], data=pd.DataFrame(all_results, columns = ['Type','Group','MMR']), x='Group', y='MMR',
+                                               box_pairs=[(1,2), (1,3), (1,4), (5,6), (5,7), (5,8), (9,10), (9,11), (9,12),
+                                                          (13,14), (13,15), (13,16), (17,18), (17,19), (17,20), (21,22), (21,23), (21,24)],
+                                               test='Mann-Whitney', text_format='star',
+                                               loc='outside')
+
+        else:
+            ax[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.35), fancybox=True, shadow=True, ncol=6)
+            
+        plt.tight_layout()
+        plt.show()
+    else:
+        for i in range(len(df)):
+            df.iloc[i,-1] = tar.loc[int(df.iloc[i,1])]
+        if grouped:
+            fig, ax = plt.subplots(1,1, figsize = (10,4))
+            df.loc[(df['PM'] > 60) & (df['ES_frequency(hz)']==8), 'PM'] = 69
+            df.loc[(df['PM'] > 60) & (df['ES_frequency(hz)']==28), 'PM'] = 70
+            df.loc[(df['PM'] > 60) & (df['ES_frequency(hz)']==140), 'PM'] = 71
+            df.loc[(df['PM'] <= 20) & (df['ES_frequency(hz)']==8), 'PM'] = 61
+            df.loc[(df['PM'] <= 20) & (df['ES_frequency(hz)']==28), 'PM'] = 62
+            df.loc[(df['PM'] <= 20) & (df['ES_frequency(hz)']==140), 'PM'] = 63
+            df.loc[(df['PM'] <= 60) & (df['ES_frequency(hz)']==8), 'PM'] = 65
+            df.loc[(df['PM'] <= 60) & (df['ES_frequency(hz)']==28), 'PM'] = 66
+            df.loc[(df['PM'] <= 60) & (df['ES_frequency(hz)']==140), 'PM'] = 67
+            df.loc[:,'PM'] -= 59
+            ax = [ax]
+            all_results = []
+        else:
+            fig, ax = plt.subplots(4,1, figsize = (8,10))
+        for i,freq in enumerate([0,8,28,140]):
+            if grouped:
+                i=0
+            if freq==0:
+                dfg = df.groupby('ES_current(uA)').get_group(0)
+                dfg.loc[:,'PM'] -= 1
+                dfg = dfg.groupby('ES_frequency(hz)').get_group(8).groupby('Cell_Type')
+            else:
+                dfg = df.groupby('ES_current(uA)').get_group(max_amp)
+                dfg = dfg.groupby('ES_frequency(hz)').get_group(freq).groupby('Cell_Type')
+            for name, dft in dfg:
+                pf = dft.loc[dft.groupby('Cell_ID')['MMR'].idxmax()]
+                if freq==8 or not grouped:
+                    ax[i].plot(pf.loc[:,'PM']-1, pf.loc[:,'MMR'], marker = '.', linestyle = 'none',color=type_colors_A[name], label = name)
+                else:
+                    ax[i].plot(pf.loc[:,'PM']-1, pf.loc[:,'MMR'], marker = '.', linestyle = 'none',color=type_colors_A[name], label = None)
+                if grouped:
+                    for k in range(len(pf)):
+                        all_results.append([name, pf['PM'].iloc[k], pf['MMR'].iloc[k]])
+            # Add labels and title
+            ax[i].set_xlabel('Firing rate (Hz)', fontsize = 16)
+            ax[i].set_ylabel('MMR', fontsize = 16)
+            ax[i].set_ylim(0,1)
+            ax[i].set_title('ES Frequency ' + str(freq) + ' Hz', fontsize = 16)
+            if grouped: 
+                ax[i].set_xticks(np.arange(12))
+                ax[i].set_xticklabels(['Control','8 Hz','28 Hz\n-- FR 0-20 Hz --','140 Hz',
+                                       'Control','8 Hz','28 Hz\n-- FR 20-60 Hz --','140 Hz',
+                                       'Control','8 Hz','28 Hz\n-- FR 60+ Hz --','140 Hz']) 
+                ax[i].set_xlabel('State', fontsize = 16)
+                ax[i].set_title(' ')
+        if grouped and annotate:
+            anot_res = []
+            rf = pd.DataFrame(all_results, columns = ['Type','Group','MMR']).groupby('Group')
+            for grp in np.arange(12)+1:
+                A = np.array(rf.get_group(grp)['MMR'])
+                q1 = np.percentile(A, 25)
+                median = np.percentile(A, 50)
+                q3 = np.percentile(A, 75)
+                iqr = q3 - q1
+                whisker_low = max(min(A), q1 - 1.5 * iqr)
+                whisker_high = min(max(A), q3 + 1.5 * iqr)
+                outliers = [d for d in A if d < whisker_low or d > whisker_high]
+                box = plt.Rectangle((grp - 0.5 / 2-1, q1), 0.5, q3 - q1, color='k', lw=2, zorder=3)
+                ax[0].add_patch(box)
+                ax[0].plot([grp - 0.5 / 2-1, grp + 0.5 / 2-1], [median, median], color='k', lw=2, zorder=4)
+                ax[0].plot([grp-1, grp-1], [whisker_low, q1], color='k', lw=2, zorder=2)
+                ax[0].plot([grp-1, grp-1], [q3, whisker_high], color='k', lw=2, zorder=2)
+                anot_res.append([grp, whisker_low, q1, median, q3, whisker_high])
+            test_results = add_stat_annotation(ax[0], data=pd.DataFrame(all_results, columns = ['Type','Group','MMR']), x='Group', y='MMR',
+                                               box_pairs=[(1,2), (1,3), (1,4), (5,6), (5,7), (5,8), (9,10), (9,11), (9,12)],
+                                               test='Mann-Whitney', text_format='star',
+                                               loc='outside')
+        else:
+            ax[0].legend(loc='upper center', bbox_to_anchor=(0.5, -0.35), fancybox=True, shadow=True, ncol=6)
+
+        plt.tight_layout()
+        plt.show()
+        
+ 
