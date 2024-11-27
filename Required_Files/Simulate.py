@@ -18,12 +18,16 @@ if run:
     import pandas as pd
     import numpy as np
     import cell_functions
-    from scipy.signal import hilbert
+    from scipy.signal import hilbert        
     
     sim_step =   0.05 # ms
-    sim_stop =   1000+int(800000/exp_rate) # ms
     stim_start =  100 # ms
+    if returns > 2:
+        sim_stop = 500
+    else:
+        sim_stop =   1000+int(800000/exp_rate) # ms   
     stim_dura =  sim_stop - stim_start # ms
+        
 
     # Set intracellular params
     in_amp =      inj_curr # nA
@@ -58,7 +62,7 @@ if run:
         config_file='config.json',
         network_dir=base_dir + '/Model',
         tstop=sim_stop, dt=sim_step,
-        report_vars=['v'],
+        report_vars=['v', 'cai'],
         current_clamp={
             'amp': in_amp,
             'delay': stim_start,
@@ -100,6 +104,14 @@ if run:
         }\n    \
         }\n  \
         },',filedata, flags=re.DOTALL)
+        if returns==3:
+            filedata=re.sub('"cai_report": {.*?}','"v_axon": {\n      \
+            "variable_name": "v",\n      \
+            "cells": "all",\n      \
+            "module": "membrane_report",\n      \
+            "sections": "axon"\n    \
+            }',filedata, flags=re.DOTALL)
+        
         f = open(sim_file,'w')
         f.write(filedata)
         f.close()
@@ -132,7 +144,7 @@ if run:
 
     sim.run()
     
-    if returns:
+    if returns in [1,2]:
         soma_data_output_file = base_dir +'/Simulation/output/v_report.h5' #Soma spike train file
         with h5py.File(soma_data_output_file, "r") as f: #Read soma spike train file
             report = f['report']
@@ -167,7 +179,7 @@ if run:
             pd.DataFrame([mean,std]).to_csv(base_dir + '/Data.csv',index=False)
         elif returns==1:
             pd.DataFrame(Peak_indices).to_csv(base_dir + '/Data.csv',index=False)
-    else:
+    elif returns == 0:
         neuron_data_output_file = base_dir + '/Simulation/output/v_report.h5'
         with h5py.File(neuron_data_output_file, "r") as f: #Read soma spike train file
             report = f['report']
@@ -199,5 +211,9 @@ if run:
             instantaneous_phase.loc[30000],  
             instantaneous_phase.loc[40000]])
         rf.to_csv(base_dir + '/Data.csv', index = False)
-    shutil.rmtree(base_dir + '/Simulation')
-    shutil.rmtree(base_dir + '/Model')
+    try:
+        shutil.rmtree(base_dir + '/Simulation/components')
+        shutil.rmtree(base_dir + '/Simulation/inputs')
+        shutil.rmtree(base_dir + '/Model')
+    except:
+        pass

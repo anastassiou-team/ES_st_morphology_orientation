@@ -1,15 +1,17 @@
+from scipy.signal import find_peaks
 from scipy.optimize import curve_fit
 from scipy.stats import norm
 from collections import Counter
 from statannot import add_stat_annotation
 from matplotlib import colors
+from neurom import viewer
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import pycircstat as pcs
 import seaborn as sns
 import pandas as pd
 import numpy as np
-import os
+import os, neurom
 
 type_colors_A = {'ITL46': 'lightcoral',
                  'ITL35': 'indianred',
@@ -26,6 +28,17 @@ type_colors_B = {'ITL46': 'limegreen',
                  'LAMP5PAX6Other': 'dodgerblue',
                  'SST': 'deepskyblue',
                  'VIP': 'cadetblue'}
+
+custom_colors = {'Passive axon\ncm = 4':'maroon',
+                 'Passive axon\ncm = 1':'red',
+                 'Passive axon\ncm = 0.5':'tomato',
+                 'Active axon dendrite\nparameters':'darkviolet',
+                 'Active axon soma\nparameters':'chartreuse',
+                 'HoF 1':'darkviolet',
+                 'HoF 2':'cadetblue',
+                 'HoF 3':'deepskyblue',
+                 'HoF 4':'dodgerblue',
+                 'HoF 5':'steelblue'}
 
 def Read_Tables(files, frequency, amplitude, phase = False, maximal = False, sweeps = None):
     dfs = []
@@ -1098,4 +1111,174 @@ def Plot_MMR_vs_FR (grouped = False, bytype = False, annotate = False, point = F
         plt.tight_layout()
         plt.show()
         
- 
+def find_first_peak(trace, after = 0):
+    peaks, _ = find_peaks(trace)
+    if len(peaks) > 0:
+        for i in peaks:
+            if (i>after) and (i<len(trace)):
+                return i
+    return 0
+def shift_fill(arr, shift):
+    if shift > 0:
+        return np.concatenate(([arr[0]] * shift, arr[:-shift]))
+    elif shift < 0:
+        return np.concatenate((arr[-shift:], [arr[0]] * (-shift)))
+    else:
+        return arr
+def align_to_reference(trace, trace_peak, ref_peak):
+    shift = ref_peak - trace_peak
+    return shift_fill(trace, shift)[475:575]     
+        
+def Plot_custom_axon_spikes(Manual_picked_model_list, plot_axon = False, plot_spikes = True, hof = False):
+    fig, ax = plt.subplots(3,6,figsize=(14, 10))
+    ax = ax.flatten()
+    all_axon_result = []
+    t = pd.read_pickle('../Results/Result_Tables/H.pkl')['Cell_Type']
+    c = pd.read_pickle('../Results/Result_Tables/H.pkl')['Cell_ID']
+    if hof:
+        h = pd.read_pickle('../Results/Result_Tables/H.pkl')['Trace(mV)']
+        i = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(1)['Trace(mV)']
+        j = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(2)['Trace(mV)']
+        k = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(3)['Trace(mV)']
+        l = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(4)['Trace(mV)']
+        m = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(5)['Trace(mV)']
+        ia = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(1)['Traces(mV)']
+        ja = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(2)['Traces(mV)']
+        ka = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(3)['Traces(mV)']
+        la = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(4)['Traces(mV)']
+        ma = pd.read_pickle('../Results/Result_Tables/N.pkl').groupby('HOF').get_group(5)['Traces(mV)']
+    else:
+        h = pd.read_pickle('../Results/Result_Tables/H.pkl')['Trace(mV)']
+        i = pd.read_pickle('../Results/Result_Tables/I.pkl')['Trace(mV)']
+        j = pd.read_pickle('../Results/Result_Tables/J.pkl')['Trace(mV)']
+        k = pd.read_pickle('../Results/Result_Tables/K.pkl')['Trace(mV)']
+        l = pd.read_pickle('../Results/Result_Tables/L.pkl')['Trace(mV)']
+        m = pd.read_pickle('../Results/Result_Tables/M.pkl')['Trace(mV)']
+        ia = pd.read_pickle('../Results/Result_Tables/I.pkl')['Traces(mV)']
+        ja = pd.read_pickle('../Results/Result_Tables/J.pkl')['Traces(mV)']
+        ka = pd.read_pickle('../Results/Result_Tables/K.pkl')['Traces(mV)']
+        la = pd.read_pickle('../Results/Result_Tables/L.pkl')['Traces(mV)']
+        ma = pd.read_pickle('../Results/Result_Tables/M.pkl')['Traces(mV)']
+    cnt = 0
+    all_files = zip(t,c,h,i,j,k,l,m,ia,ja,ka,la,ma)
+    for t,c,h,i,j,k,l,m,ia,ja,ka,la,ma in all_files:
+        if int(c) in Manual_picked_model_list:
+            ref_peak = find_first_peak(h.flatten())
+            h = align_to_reference(h, ref_peak, 500)
+            to_zip = [i.flatten(),j.flatten(),k.flatten(),l.flatten(),m.flatten()]
+            peaks = [find_first_peak(trace) for trace in to_zip]
+            aligned_traces = [align_to_reference(trace, peak, 500) for trace, peak in zip(to_zip, peaks)]
+            if plot_spikes:
+                if hof:
+                    titles = ['HoF 1','HoF 2','HoF 3','HoF 4','HoF 5']
+                else:
+                    titles = ['Passive axon\ncm = 4','Passive axon\ncm = 1','Passive axon\ncm = 0.5',
+                                        'Active axon dendrite\nparameters','Active axon soma\nparameters']
+                for title, data in zip(titles, aligned_traces):
+                    ax[cnt].plot(data,  color = custom_colors[title], linewidth = 2, alpha = 0.8, label=title)
+            aligned_traces = []
+            for axon_segment in range(len(ia.T)):
+                to_zip = [ia.T[axon_segment], ja.T[axon_segment], ka.T[axon_segment], 
+                          la.T[axon_segment], ma.T[axon_segment]]
+                aligned_traces = [align_to_reference(trace, peak, 500) for trace, peak in zip(to_zip, peaks)]
+                if hof:
+                    titles = ['HoF 1','HoF 2','HoF 3','HoF 4','HoF 5']
+                else:
+                    titles = ['Passive axon\ncm = 4','Passive axon\ncm = 1','Passive axon\ncm = 0.5',
+                                        'Active axon dendrite\nparameters','Active axon soma\nparameters']
+
+                for title, data in zip(titles, aligned_traces):
+                    instantaneus_peak = find_first_peak(data, after = 25)
+                    if instantaneus_peak!=0 and plot_axon:
+                        ax[cnt].plot(instantaneus_peak, data[instantaneus_peak], 
+                                 color = custom_colors[title], marker = '.', 
+                                 linestyle = 'none', alpha = 0.6) 
+                    all_axon_result.append([t,c,title,axon_segment,instantaneus_peak-25,data[instantaneus_peak]])
+            if hof:
+                ax[cnt].plot(h, color = 'k', linewidth = 2, alpha = 0.8, label = 'HoF[0]')
+            else:
+                ax[cnt].plot(h, color = 'k', linewidth = 2, alpha = 0.8, label = 'Active optimized\nwithout')
+            ax[cnt].set_title(str(t)+'\n' + str(c))
+            ax[cnt].spines[['right', 'left', 'bottom', 'top']].set_visible(False)
+            ax[cnt].tick_params(right=False, left=False, bottom=False, top=False,
+                                labelleft=False, labelbottom=False)
+            if cnt==16:
+                ax[cnt].legend(loc='center left', bbox_to_anchor=(1.1, 0.5))
+                cnt+=1
+                fig.delaxes(ax[cnt])
+            cnt+=1
+    plt.show()
+    return all_axon_result
+        
+def Plot_morphologies (files = 'Custom', calibrated = True):
+    swc_path = '../Required_Files/Models/SWCs connected XXX/'.replace('XXX', files)
+    morphfiles = os.listdir(swc_path)
+    current_vals = pd.read_csv('../Required_files/Calibrated.csv')
+    current_vals = current_vals.sort_values('Target', ascending=True).reset_index(drop=True).reset_index()
+    current_vals = current_vals.set_index('cell_id')
+    figcnt = 0
+    fig, ax = plt.subplots(1,5, figsize = (12,3))
+    toplot = []
+    for i in morphfiles:
+        if int(i.split('_')[2]) not in current_vals.index and calibrated:
+            continue
+        if 'rmed_0'not in i:
+            continue
+        toplot.append(i)
+    for i in toplot:
+        morph = neurom.load_morphology(swc_path+i)
+        viewer.plot_morph(morph, ax = ax[figcnt])
+        ax[figcnt].set_aspect('equal')
+        ax[figcnt].set_xlim(-500,500)
+        ax[figcnt].set_ylim(-1500,1500)
+        ax[figcnt].set_axis_off()
+        ax[figcnt].set_title(ax[figcnt].get_title().replace('_transformed_0.swc','').replace('__','\n'))
+        figcnt += 1
+        if figcnt>4 and i!=toplot[-1]:
+            plt.show()
+            figcnt = 0
+            fig, ax = plt.subplots(1,5, figsize = (10,3))
+    plt.show()
+
+def Plot_axon_propagation (all_axon_result):
+    fig, ax = plt.subplots(6,6,figsize=(14, 14))
+    ax = ax.flatten()  
+    df = pd.DataFrame(all_axon_result, columns = ['Type','Cell','Axon type','Axon segment',
+                                                  'Delay (*0.05ms)','Amplitude (mV)'])
+    df.loc[df['Delay (*0.05ms)']==-25,'Delay (*0.05ms)'] = np.nan
+    df.dropna(inplace = True)
+    df = df.groupby('Type')
+    cnt = 0
+    for t in type_colors_A:
+        dfg = df.get_group(t).groupby('Cell')
+        for cell, cgroup in dfg:
+            gfg = cgroup.groupby('Axon type')
+            for axon, agroup in gfg:
+                ax[cnt].plot(agroup['Axon segment']*20, agroup['Amplitude (mV)'], 
+                             color = custom_colors[axon], marker = '.', linestyle = 'none')
+                ax[cnt].set_title(agroup.iloc[0,0])
+                ax[cnt].set_xlabel('Path distance (um)')
+                ax[cnt].set_ylabel('Amplitude (mV)')
+                ax[cnt].set_xlim(20,2000)
+                ax[cnt].set_xscale('log')
+            cnt+=1
+            ax[cnt].axhline(y=1, color='k', linestyle='--')
+            ax[cnt].axvline(x=100, color='k', linestyle='--')
+            for axon, agroup in gfg:
+                ax[cnt].plot(agroup['Axon segment']*20, agroup['Delay (*0.05ms)']*0.05, 
+                             color = custom_colors[axon], label = axon, marker = '.', linestyle = 'none')
+                ax[cnt].set_title(str(cell))
+                ax[cnt].set_xlabel('Path distance (um)')
+                ax[cnt].set_ylabel('Delay (ms)')
+                ax[cnt].set_xlim(20,2000)
+                ax[cnt].set_xscale('log')
+            if cnt==33:
+                ax[cnt].legend(loc='center left',ncols = 2, bbox_to_anchor=(1.15, 0.5))
+                cnt+=1
+                fig.delaxes(ax[cnt])
+                cnt+=1
+                fig.delaxes(ax[cnt])
+            cnt+=1
+
+    plt.subplots_adjust(wspace=0.5, hspace=0.75)
+    plt.show()    
