@@ -4,6 +4,7 @@ from scipy.stats import norm
 from collections import Counter
 from statannot import add_stat_annotation
 from matplotlib import colors
+from matplotlib.colors import ListedColormap
 from neurom import viewer
 import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
@@ -1282,3 +1283,148 @@ def Plot_axon_propagation (all_axon_result):
 
     plt.subplots_adjust(wspace=0.5, hspace=0.75)
     plt.show()    
+  
+
+def find_local_maxima(arr):
+    local_maxima_indices = []
+    if len(arr) < 3:
+        return local_maxima_indices
+    for i in range(1, len(arr) - 1):
+        if arr[i] > arr[i - 1] and arr[i] > arr[i + 1]:
+            local_maxima_indices.append(i)
+    return local_maxima_indices
+  
+def plot_HOF_spikes(es_amp = 1000, clean = True):
+    all_results = []
+    nscnt = 0
+    s1cnt = 0
+    mscnt = 0
+    bscnt = 0
+    df = pd.concat([pd.read_pickle('../Results/Result_Tables/O_A.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/O_B.pkl'),
+                    pd.read_pickle('../Results/Result_Tables/O_C.pkl')], axis=0).reset_index(drop = True)
+
+    cm = plt.get_cmap('gist_rainbow')
+    fig = plt.figure(figsize = (14,3))
+    ax = fig.add_subplot(111)
+    ax.set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
+    for i in range(20):
+        ax.plot(np.arange(10)*(i+1), label = 'HOF: '+str(i))
+    ax.set_axis_off()
+    ax.legend(ncols = 4)
+    plt.show()
+
+    dfgrp = df.groupby('Cell_ID')
+    for name, dfg in dfgrp:
+        temp_results = [dfg.iloc[0,0],name, es_amp]
+        dfg = dfg.groupby('ES_current(uA)').get_group(es_amp)
+        fig, ax = plt.subplots(1,2, figsize = (14,4))
+        ax[0].set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
+        ax[1].set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
+        dfgh = dfg.groupby('HOF')
+        for hof, dfh in dfgh:
+            data = np.array(dfh['Trace(mV)'])[0][18000:26000]
+            
+            good_model = False
+            hof_peaks = find_local_maxima(data[1990:2490])
+            if len(hof_peaks)==1 and hof_peaks[0] == 11:
+                ax[0].plot(data)
+                data = data[1990:2490]
+                ax[1].plot(data)
+                temp_results.append([hof,'NS',data[11]-data[0]])
+                nscnt += 1
+            elif len(hof_peaks)==2 and hof_peaks[0] == 11:
+                if data[1990+hof_peaks[1]]>0:
+                    ax[0].plot(data)
+                    data = data[1990:2490]
+                    ax[1].plot(data)
+                    temp_results.append([hof,'1S',data[11]-data[0],hof_peaks[1],data[hof_peaks[1]]-data[0]])
+                    s1cnt += 1
+                else:
+                    ax[0].plot(data)
+                    data = data[1990:2490]
+                    ax[1].plot(data)
+                    temp_results.append([hof,'NS',data[11]-data[0]])
+                    nscnt += 1
+            elif len(hof_peaks)>0 and hof_peaks[0] == 11:
+                temp_array = [hof,'MS',data[2001]-data[1990]]
+                for i in range(len(hof_peaks)-1):
+                    temp_array.append(hof_peaks[i+1])
+                    temp_array.append(data[1990+hof_peaks[i+1]]-data[1990])
+                temp_results.append(temp_array)
+                if clean == False:
+                    ax[0].plot(data)
+                    data = data[1990:2490]
+                    ax[1].plot(data)
+                mscnt += 1
+            elif len(hof_peaks)>0:
+                temp_array = [hof,'BS']
+                for i in range(len(hof_peaks)):
+                    temp_array.append(hof_peaks[i])
+                    temp_array.append(data[1990+hof_peaks[i]]-data[1990])
+                temp_results.append(temp_array)
+                if clean == False:
+                    ax[0].plot(data)
+                    data = data[1990:2490]
+                    ax[1].plot(data)
+                bscnt += 1
+        all_results.append(temp_results)
+        ax[0].set_title(str(dfg.iloc[0,0]))
+        ax[1].set_title(str(name))
+        plt.show()
+    if clean:
+        data = pd.DataFrame(all_results)
+        Passive_spikes = []
+        Active_spikes = []
+        for i in range(len(data)):
+            for j in range(20):
+                spikes = data.iloc[i,j+3]
+                if spikes is not None:
+                    if spikes[1] == 'NS':
+                        Passive_spikes.append([data.iloc[i,0], data.iloc[i,1], j, spikes[2]])
+                    elif spikes[1] == '1S':
+                        Passive_spikes.append([data.iloc[i,0], data.iloc[i,1], j, spikes[2]])
+                        Active_spikes.append([data.iloc[i,0], data.iloc[i,1], j, (spikes[3]-10)*0.05, spikes[4]]) #convert to ms
+        return Passive_spikes, Active_spikes, nscnt, s1cnt, mscnt, bscnt
+
+def Plot_Soma_stats (Passive_spikes, Active_spikes):
+    df = pd.DataFrame(Passive_spikes, columns=['Type', 'Cell', 'HoF', 'Passive peak amplitude (mV)'])
+    df = df[~df['Type'].isin(['L56NP','ITL6'])]
+    df['Passive peak amplitude (mV)'] = [i[0] for i in df['Passive peak amplitude (mV)']]
+    ax = sns.swarmplot(data=df, x='Type', y='Passive peak amplitude (mV)', hue='Cell', size = 1)
+    ax.legend().set_visible(False)
+    ax.set_title('Passive peak amplitude (mV)', fontsize = 16)
+    Fix_Lamp_Label(ax)
+    plt.show()
+    df = pd.DataFrame(Active_spikes, columns=['Type', 'Cell', 'HoF', 'Propagation delay (ms)', 'Spike amplitude (mV)'])
+    df['Spike amplitude (mV)'] = [i[0] for i in df['Spike amplitude (mV)']]
+    ax = sns.swarmplot(data=df, x='Type', y='Spike amplitude (mV)', hue='Cell', size = 1)
+    ax.legend().set_visible(False)
+    ax.set_title('Spike amplitude (mV)', fontsize = 16)
+    Fix_Lamp_Label(ax)
+    plt.show()
+    ax = sns.swarmplot(data=df, x='Type', y='Propagation delay (ms)', hue='Cell', size = 1)
+    ax.legend().set_visible(False)
+    ax.set_title('Propagation delay (ms)', fontsize = 16)
+    Fix_Lamp_Label(ax)
+    plt.show()
+    
+def Plot_consistency (Passive_spikes, Active_spikes):
+    df = pd.DataFrame(Active_spikes)
+    cell_list = list(set([i[0]+'_'+i[1] for i in Passive_spikes]))
+    do_it = []
+    for i in range(len(cell_list)):
+        do_it.append(np.zeros(21))
+    do_it = pd.DataFrame(do_it).astype(int)
+    do_it.iloc[:,0] = sorted(cell_list)
+    do_it.set_index(0, inplace = True)
+    for active in range(len(df)):
+        for row in do_it.index:
+            if str(row).split('_')[1]==str(df.iloc[active,1]):
+                do_it.loc[row,1+int(df.iloc[active,2])] = 1
+    plt.figure(figsize=(8, 50))
+    cmap = ListedColormap(['red', 'green'])
+    ax = sns.heatmap(do_it, cmap=ListedColormap(['red', 'green']), cbar=False, linewidths=0.5, linecolor='black')
+    ax.set_xlabel('HoF model', fontsize = 16)
+    ax.set_ylabel('Cell ID', fontsize = 16)
+    plt.show()
