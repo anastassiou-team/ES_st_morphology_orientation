@@ -1294,15 +1294,15 @@ def find_local_maxima(arr):
             local_maxima_indices.append(i)
     return local_maxima_indices
   
-def plot_HOF_spikes(es_amp = 1000, clean = True):
+def plot_HOF_spikes(file = 'O', es_amp = 500, clean = True):
     all_results = []
     nscnt = 0
     s1cnt = 0
     mscnt = 0
     bscnt = 0
-    df = pd.concat([pd.read_pickle('../Results/Result_Tables/O_A.pkl'), 
-                    pd.read_pickle('../Results/Result_Tables/O_B.pkl'),
-                    pd.read_pickle('../Results/Result_Tables/O_C.pkl')], axis=0).reset_index(drop = True)
+    df = pd.concat([pd.read_pickle('../Results/Result_Tables/' + file + '_A.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_B.pkl'),
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_C.pkl')], axis=0).reset_index(drop = True)
 
     cm = plt.get_cmap('gist_rainbow')
     fig = plt.figure(figsize = (14,3))
