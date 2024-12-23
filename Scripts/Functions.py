@@ -1294,7 +1294,7 @@ def find_local_maxima(arr):
             local_maxima_indices.append(i)
     return local_maxima_indices
   
-def plot_HOF_spikes(file = 'O', es_amp = 500, clean = True):
+def plot_HOF_spikes(file = 'O', es_amp = -100, clean = True):
     all_results = []
     nscnt = 0
     s1cnt = 0
@@ -1318,59 +1318,53 @@ def plot_HOF_spikes(file = 'O', es_amp = 500, clean = True):
     for name, dfg in dfgrp:
         temp_results = [dfg.iloc[0,0],name, es_amp]
         dfg = dfg.groupby('ES_current(uA)').get_group(es_amp)
-        fig, ax = plt.subplots(1,2, figsize = (14,4))
-        ax[0].set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
-        ax[1].set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
+        fig, ax = plt.subplots(1,1, figsize = (14,4))
+        ax.set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
         dfgh = dfg.groupby('HOF')
         for hof, dfh in dfgh:
-            data = np.array(dfh['Trace(mV)'])[0][18000:26000]
+            data = np.array(dfh['Trace(mV)'])[0]
             
             good_model = False
-            hof_peaks = find_local_maxima(data[1990:2490])
-            if len(hof_peaks)==1 and hof_peaks[0] == 11:
-                ax[0].plot(data)
-                data = data[1990:2490]
-                ax[1].plot(data)
-                temp_results.append([hof,'NS',data[11]-data[0]])
+            hof_peaks = find_local_maxima(data[90:490])
+
+            if len(hof_peaks)==1 and hof_peaks[0] == 10:
+                ax.plot(data)
+                data = data[90:490]
+                temp_results.append([hof,'NS',data[10]-data[0]])
                 nscnt += 1
-            elif len(hof_peaks)==2 and hof_peaks[0] == 11:
-                if data[1990+hof_peaks[1]]>0:
-                    ax[0].plot(data)
-                    data = data[1990:2490]
-                    ax[1].plot(data)
-                    temp_results.append([hof,'1S',data[11]-data[0],hof_peaks[1],data[hof_peaks[1]]-data[0]])
+            elif len(hof_peaks)==2 and hof_peaks[0] == 10:
+                if data[90+hof_peaks[1]]>0:
+                    ax.plot(data)
+                    data = data[90:490]
+                    temp_results.append([hof,'1S',data[10]-data[0],hof_peaks[1],data[hof_peaks[1]]-data[0]])
                     s1cnt += 1
                 else:
-                    ax[0].plot(data)
-                    data = data[1990:2490]
-                    ax[1].plot(data)
-                    temp_results.append([hof,'NS',data[11]-data[0]])
+                    ax.plot(data)
+                    data = data[90:490]
+                    temp_results.append([hof,'NS',data[10]-data[0]])
                     nscnt += 1
-            elif len(hof_peaks)>0 and hof_peaks[0] == 11:
-                temp_array = [hof,'MS',data[2001]-data[1990]]
+            elif len(hof_peaks)>0 and hof_peaks[0] == 10:
+                temp_array = [hof,'MS',data[101]-data[90]]
                 for i in range(len(hof_peaks)-1):
                     temp_array.append(hof_peaks[i+1])
-                    temp_array.append(data[1990+hof_peaks[i+1]]-data[1990])
+                    temp_array.append(data[90+hof_peaks[i+1]]-data[90])
                 temp_results.append(temp_array)
                 if clean == False:
-                    ax[0].plot(data)
-                    data = data[1990:2490]
-                    ax[1].plot(data)
+                    ax.plot(data)
+                    data = data[90:490]
                 mscnt += 1
             elif len(hof_peaks)>0:
                 temp_array = [hof,'BS']
                 for i in range(len(hof_peaks)):
                     temp_array.append(hof_peaks[i])
-                    temp_array.append(data[1990+hof_peaks[i]]-data[1990])
+                    temp_array.append(data[90+hof_peaks[i]]-data[90])
                 temp_results.append(temp_array)
                 if clean == False:
-                    ax[0].plot(data)
-                    data = data[1990:2490]
-                    ax[1].plot(data)
+                    ax.plot(data)
+                    data = data[90:490]
                 bscnt += 1
         all_results.append(temp_results)
-        ax[0].set_title(str(dfg.iloc[0,0]))
-        ax[1].set_title(str(name))
+        ax.set_title(str(dfg.iloc[0,0])+ '_'+str(name))
         plt.show()
     if clean:
         data = pd.DataFrame(all_results)
@@ -1428,3 +1422,152 @@ def Plot_consistency (Passive_spikes, Active_spikes):
     ax.set_xlabel('HoF model', fontsize = 16)
     ax.set_ylabel('Cell ID', fontsize = 16)
     plt.show()
+    
+def plot_dendrite_propagation(file = 'O', es_amp = -100, clean = True):
+    all_results = []
+    df = pd.concat([pd.read_pickle('../Results/Result_Tables/' + file + '_A.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_B.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_C.pkl')], axis=0).reset_index(drop = True)
+
+    cm = plt.get_cmap('gist_rainbow')
+    fig = plt.figure(figsize = (14,3))
+    ax = fig.add_subplot(111)
+    ax.set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
+    for i in range(20):
+        ax.plot(np.arange(10)*(i+1), label = 'HOF: '+str(i))
+    ax.set_axis_off()
+    ax.legend(ncols = 4)
+    plt.show()
+
+    dfgrp = df.groupby('Cell_ID')
+    for name, dfg in dfgrp:
+        temp_results = [dfg.iloc[0,0],name, es_amp]
+        dfg = dfg.groupby('ES_current(uA)').get_group(es_amp)
+        dfgh = dfg.groupby('HOF')
+        fig = plt.figure(figsize = (14,10))
+        gs = fig.add_gridspec(12,6)
+        ax = []
+        ax.append(fig.add_subplot(gs[:5, 3:]))
+        ax.append(fig.add_subplot(gs[5:, 3:]))
+        ax[0].set_prop_cycle(color=[cm(1.*i/20) for i in range(20,0,-1)])
+        ax[1].set_prop_cycle(color=[cm(1.*i/20) for i in range(20,0,-1)])
+        fig.suptitle(str(dfg.iloc[0,0])+'_'+name)
+        fig.supylabel(str('Distance from soma (um)'), fontsize = 16, x = 0.15)
+        for hof, dfh in reversed(list(dfgh)):
+            data = pd.DataFrame(np.array(dfh['Traces(mV)'])[0])
+            for segm in range(10):
+                if hof==19:
+                    if segm:
+                        ax.append(fig.add_subplot(gs[segm+1, 1:3]))
+                    else:
+                        ax.append(fig.add_subplot(gs[segm+1, 1:3]))
+                    ax[segm+2].set_prop_cycle(color=[cm(1.*i/20) for i in range(20,0,-1)])
+                ax[segm+2].tick_params(left=False, right=False, labelleft=True, labelbottom=False) 
+                ax[segm+2].spines['left'].set_visible(False) 
+                ax[segm+2].spines['bottom'].set_visible(False)
+                ax[segm+2].spines['right'].set_visible(False) 
+                ax[segm+2].spines['top'].set_visible(False)
+                ax[segm+2].set_xticks([])
+                ax[segm+2].set_yticks([])
+                ax[segm+2].set_ylabel(str(segm*200+30))
+                ax[segm+2].plot(data.iloc[100:400,segm*10]+100, alpha = 0.6, linewidth = 2)
+            max_values = data.max(axis=0)
+            max_index = data.idxmax(axis=0).where(data.idxmax(axis=0) > 100, np.nan).replace(499, np.nan)
+            ax[0].plot(np.arange(len(max_values))*20+30, max_values, alpha = 0.6, linewidth = 2)
+            ax[0].set_xlabel('Distance from soma (um)', fontsize = 16)
+            ax[0].set_ylabel('Peak amplitude (mV)', fontsize = 16)
+            ax[1].plot(np.arange(len(max_index))*20+30, (max_index-100)*0.05, alpha = 0.6, linewidth = 2)
+            ax[1].set_xlabel('Distance from soma (um)', fontsize = 16)
+            ax[1].set_ylabel('Peak delay (ms)', fontsize = 16)
+        ax.append(fig.add_subplot(gs[:, 0]))
+        morph = neurom.load_morphology('../Required_Files/Models/Stick.swc')
+        viewer.plot_morph(morph, ax = ax[-1], plane = 'xy')
+        ax[-1].set_aspect('equal')
+        ax[-1].set_ylim(-2001,1)
+        ax[-1].set_xlim(-50,10)
+        ax[-1].plot(-25,-1250, marker = 'x')
+        ax[-1].set_axis_off()
+        fig.tight_layout()
+        plt.show()
+        
+def plot_custom_dendrite_propagation(file = 'P', es_amp = -100, clean = True):
+    all_results = []
+    df = pd.concat([pd.read_pickle('../Results/Result_Tables/' + file + '_A.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_B.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_C.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_D.pkl'), 
+                    pd.read_pickle('../Results/Result_Tables/' + file + '_E.pkl')], axis=0).reset_index(drop = True)
+    
+    radii = list(pd.read_csv('../Required_Files/Models/StickFluctuating.swc', header = None, delimiter = ' ').iloc[1:,5])
+
+    cm = plt.get_cmap('gist_rainbow')
+    fig = plt.figure(figsize = (14,3))
+    ax = fig.add_subplot(111)
+    ax.set_prop_cycle(color=[cm(1.*i/20) for i in range(20)])
+    for i in range(20):
+        ax.plot(np.arange(10)*(i+1), label = 'HOF: '+str(i))
+    ax.set_axis_off()
+    ax.legend(ncols = 4)
+    plt.show()
+
+    dfgrp = df.groupby('Cell_ID')
+    for name, dfg in dfgrp:
+        temp_results = [dfg.iloc[0,0],name, es_amp]
+        dfg = dfg.groupby('ES_current(uA)').get_group(es_amp)
+        dfgh = dfg.groupby('HOF')
+        fig = plt.figure(figsize = (14,11))
+        gs = fig.add_gridspec(18,6)
+        gs2 = fig.add_gridspec(3,5)
+        ax = []
+        ax.append(fig.add_subplot(gs2[0, 3:]))
+        ax.append(fig.add_subplot(gs2[1, 3:]))
+        ax.append(fig.add_subplot(gs2[2, 3:]))
+        ax[0].set_prop_cycle(color=[cm(1.*i/20) for i in range(20,0,-1)])
+        ax[1].set_prop_cycle(color=[cm(1.*i/20) for i in range(20,0,-1)])
+        ax[2].set_prop_cycle(color=[cm(1.*i/20) for i in range(20,0,-1)])
+        fig.suptitle(str(dfg.iloc[0,0])+'_'+name)
+        fig.supylabel(str('Distance from soma (um)'), fontsize = 16, x = 0.22)
+        for hof, dfh in reversed(list(dfgh)):
+            data = pd.DataFrame(np.array(dfh['Traces(mV)'])[0])
+
+            for segm in range(18):
+                if hof==19:
+                    if segm:
+                        ax.append(fig.add_subplot(gs[segm, 1:3]))
+                    else:
+                        ax.append(fig.add_subplot(gs[segm, 1:3]))
+                    ax[segm+3].set_prop_cycle(color=[cm(1.*i/20) for i in range(20,0,-1)])
+                ax[segm+3].tick_params(left=False, right=False, labelleft=True, labelbottom=False) 
+                ax[segm+3].spines['left'].set_visible(False) 
+                ax[segm+3].spines['bottom'].set_visible(False)
+                ax[segm+3].spines['right'].set_visible(False) 
+                ax[segm+3].spines['top'].set_visible(False)
+                ax[segm+3].set_xticks([])
+                ax[segm+3].set_yticks([])
+                ax[segm+3].set_ylabel(str(segm*200+30))
+                ax[segm+3].plot(data.iloc[100:400,segm*10]+100, alpha = 0.6, linewidth = 2)
+            max_values = data.max(axis=0)
+            max_index = data.idxmax(axis=0).where(data.idxmax(axis=0) > 100, np.nan).replace(499, np.nan)
+            ax[0].plot(np.arange(len(radii))*20+30, radii, alpha = 0.6, linewidth = 2)
+            ax[0].set_xlabel('Distance from soma (um)', fontsize = 16)
+            ax[0].set_ylabel('Dendrite radius (um)', fontsize = 16)
+            ax[0].set_xlim(0,3450)
+            ax[1].plot(np.arange(len(max_values))*20+30, max_values, alpha = 0.6, linewidth = 2)
+            ax[1].set_xlabel('Distance from soma (um)', fontsize = 16)
+            ax[1].set_ylabel('Peak amplitude (mV)', fontsize = 16)
+            ax[1].set_xlim(0,3450)
+            ax[2].plot(np.arange(len(max_index))*20+30, (max_index-100)*0.05, alpha = 0.6, linewidth = 2)
+            ax[2].set_xlabel('Distance from soma (um)', fontsize = 16)
+            ax[2].set_ylabel('Peak delay (ms)', fontsize = 16)
+            ax[2].set_xlim(0,3450)
+        ax.append(fig.add_subplot(gs[:, 0]))
+        morph = neurom.load_morphology('../Required_Files/Models/StickFluctuating.swc')
+        viewer.plot_morph(morph, ax = ax[-1], plane = 'xy')
+        ax[-1].set_aspect('equal')
+        ax[-1].set_ylim(-2280,1150)
+        ax[-1].set_xlim(-250,250)
+        ax[-1].plot(-25,1120-1250, marker = 'x')
+        ax[-1].set_axis_off()
+        ax[-1].set_title('')
+        
+        plt.show()

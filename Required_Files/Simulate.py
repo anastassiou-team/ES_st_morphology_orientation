@@ -22,7 +22,11 @@ if run:
     
     sim_step =   0.05 # ms
     stim_start =  100 # ms
-    if returns > 2:
+    if returns >= 5:
+        inj_curr = 0.0
+        inj_std = 0.0
+        sim_stop = 2000
+    elif returns > 2:
         sim_stop = 500
     else:
         sim_stop =   1000+int(800000/exp_rate) # ms   
@@ -31,8 +35,20 @@ if run:
 
     # Set intracellular params
     in_amp =      inj_curr # nA
-
-    if point:
+    
+    if returns == 8:
+        probeX =       25 # um
+        probeY =      450 # um
+    elif returns == 7:
+        probeX =       25 # um
+        probeY =     -450 # um
+    elif returns == 6:
+        probeX =       25 # um
+        probeY =     1250 # um
+    elif returns == 5:
+        probeX =       25 # um
+        probeY =    -1250 # um
+    elif point:
         probeX =       50 # um
         probeY =        0 # um
     else:
@@ -79,32 +95,58 @@ if run:
         f = open(sim_file,'r')
         filedata = f.read()
         f.close()
-        filedata=re.sub('"inputs": {.*?},','"inputs": {\n    \
-        "current_clamp": {\n      \
-        "input_type": "current_clamp",\n      \
-        "module": "IClamp",\n      \
-        "node_set": "all",\n      \
-        "gids": "all",\n      \
-        "amp": '+str(in_amp)+',\n      \
-        "delay": '+str(stim_start)+',\n      \
-        "duration": '+str(stim_dura)+'\n    \
-        },\n    \
-        "extra_stim": {\n      \
-        "input_type": "lfp",\n      \
-        "module": "xstim",\n      \
-        "node_set": "all",\n      \
-        "positions_file": "$BASE_DIR/inputs/xstim_electrode.csv",\n      \
-        "waveform": {\n        \
-        "shape": "sin",\n        \
-        "del": '+str(stim_start)+',\n        \
-        "amp": '+str(cr/1000)+',\n        \
-        "freq": '+str(fr)+',\n        \
-        "offset": 0.0,\n        \
-        "dur": '+str(stim_dura)+'\n      \
-        }\n    \
-        }\n  \
-        },',filedata, flags=re.DOTALL)
-        if returns==3:
+        if returns >= 5:
+            filedata=re.sub('"inputs": {.*?},','"inputs": {\n    \
+            "current_clamp": {\n      \
+            "input_type": "current_clamp",\n      \
+            "module": "IClamp",\n      \
+            "node_set": "all",\n      \
+            "gids": "all",\n      \
+            "amp": '+str(in_amp)+',\n      \
+            "delay": '+str(stim_start)+',\n      \
+            "duration": '+str(stim_dura)+'\n    \
+            },\n    \
+            "extra_stim": {\n      \
+            "input_type": "lfp",\n      \
+            "module": "xstim",\n      \
+            "node_set": "all",\n      \
+            "positions_file": "$BASE_DIR/inputs/xstim_electrode.csv",\n      \
+            "waveform": {\n        \
+            "shape": "dc",\n        \
+            "del": '+str(1000)+',\n        \
+            "amp": '+str(cr/1000)+',\n        \
+            "dur": '+str(fr)+'\n        \
+            }\n    \
+            }\n  \
+            },',filedata, flags=re.DOTALL)
+        else:
+            filedata=re.sub('"inputs": {.*?},','"inputs": {\n    \
+            "current_clamp": {\n      \
+            "input_type": "current_clamp",\n      \
+            "module": "IClamp",\n      \
+            "node_set": "all",\n      \
+            "gids": "all",\n      \
+            "amp": '+str(in_amp)+',\n      \
+            "delay": '+str(stim_start)+',\n      \
+            "duration": '+str(stim_dura)+'\n    \
+            },\n    \
+            "extra_stim": {\n      \
+            "input_type": "lfp",\n      \
+            "module": "xstim",\n      \
+            "node_set": "all",\n      \
+            "positions_file": "$BASE_DIR/inputs/xstim_electrode.csv",\n      \
+            "waveform": {\n        \
+            "shape": "sin",\n        \
+            "del": '+str(stim_start)+',\n        \
+            "amp": '+str(cr/1000)+',\n        \
+            "freq": '+str(fr)+',\n        \
+            "offset": 0.0,\n        \
+            "dur": '+str(stim_dura)+'\n      \
+            }\n    \
+            }\n  \
+            },',filedata, flags=re.DOTALL)
+ 
+        if returns==3 or returns>=5:
             filedata=re.sub('"cai_report": {.*?}','"v_axon": {\n      \
             "variable_name": "v",\n      \
             "cells": "all",\n      \
