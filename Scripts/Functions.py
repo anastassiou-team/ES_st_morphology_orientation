@@ -1428,7 +1428,12 @@ def plot_dendrite_propagation(file = 'O', es_amp = -100, clean = True):
     df = pd.concat([pd.read_pickle('../Results/Result_Tables/' + file + '_A.pkl'), 
                     pd.read_pickle('../Results/Result_Tables/' + file + '_B.pkl'), 
                     pd.read_pickle('../Results/Result_Tables/' + file + '_C.pkl')], axis=0).reset_index(drop = True)
-
+    for subfile in "DEFGH":
+        try:
+            df = pd.concat([df, 
+                pd.read_pickle('../Results/Result_Tables/' + file + '_'+subfile+'.pkl')], axis=0).reset_index(drop = True)
+        except:
+            break
     cm = plt.get_cmap('gist_rainbow')
     fig = plt.figure(figsize = (14,3))
     ax = fig.add_subplot(111)
@@ -1477,6 +1482,76 @@ def plot_dendrite_propagation(file = 'O', es_amp = -100, clean = True):
             ax[0].set_xlabel('Distance from soma (um)', fontsize = 16)
             ax[0].set_ylabel('Peak amplitude (mV)', fontsize = 16)
             ax[1].plot(np.arange(len(max_index))*20+30, (max_index-100)*0.05, alpha = 0.6, linewidth = 2)
+            ax[1].set_xlabel('Distance from soma (um)', fontsize = 16)
+            ax[1].set_ylabel('Peak delay (ms)', fontsize = 16)
+        ax.append(fig.add_subplot(gs[:, 0]))
+        morph = neurom.load_morphology('../Required_Files/Models/Stick.swc')
+        viewer.plot_morph(morph, ax = ax[-1], plane = 'xy')
+        ax[-1].set_aspect('equal')
+        ax[-1].set_ylim(-2001,1)
+        ax[-1].set_xlim(-50,10)
+        ax[-1].plot(-25,-1250, marker = 'x')
+        ax[-1].set_axis_off()
+        fig.tight_layout()
+        plt.show()
+        
+def plot_dendrite_propagation_vs_dL(file = 'OTU', dL = [20,40,10], es_amp = -100, clean = True):
+    all_results = []
+    dframes = []
+    for i in file:
+        df = pd.concat([pd.read_pickle('../Results/Result_Tables/' + i + '_A.pkl'), 
+                        pd.read_pickle('../Results/Result_Tables/' + i + '_B.pkl'), 
+                        pd.read_pickle('../Results/Result_Tables/' + i + '_C.pkl')], axis=0).reset_index(drop = True)
+        for subfile in "DEFGH":
+            try:
+                df = pd.concat([df, 
+                    pd.read_pickle('../Results/Result_Tables/' + i + '_'+subfile+'.pkl')], axis=0).reset_index(drop = True)
+            except:
+                break
+        dframes.append(df)
+    cm = plt.get_cmap('gist_rainbow')
+    fig = plt.figure(figsize = (14,3))
+    ax = fig.add_subplot(111)
+    for i in range(len(dL)):
+        ax.plot(np.arange(10)*(i+1), label = 'dL = '+str(dL[i]))
+    ax.set_axis_off()
+    ax.legend(ncols = 4)
+    plt.show()
+    dfgrp = dframes[0].groupby('Cell_ID')
+    for name, dfg in dfgrp:
+        fig = plt.figure(figsize = (14,10))
+        gs = fig.add_gridspec(12,6)
+        ax = []
+        ax.append(fig.add_subplot(gs[:5, 3:]))
+        ax.append(fig.add_subplot(gs[5:, 3:]))
+        for sweep, df in enumerate(dframes):
+            dfgrp = df.groupby('Cell_ID')
+            dfg = dfgrp.get_group(name)
+            temp_results = [dfg.iloc[0,0],name, es_amp]
+            dfg = dfg.groupby('ES_current(uA)').get_group(es_amp)
+            dfh = dfg.groupby('HOF').get_group(0)
+            fig.suptitle(str(dfg.iloc[0,0])+'_'+name)
+            fig.supylabel(str('Distance from soma (um)'), fontsize = 16, x = 0.15)
+            hof = 0
+            data = pd.DataFrame(np.array(dfh['Traces(mV)'])[0])
+            for segm in range(10):
+                if not sweep:
+                    ax.append(fig.add_subplot(gs[segm+1, 1:3]))
+                ax[segm+2].tick_params(left=False, right=False, labelleft=True, labelbottom=False) 
+                ax[segm+2].spines['left'].set_visible(False) 
+                ax[segm+2].spines['bottom'].set_visible(False)
+                ax[segm+2].spines['right'].set_visible(False) 
+                ax[segm+2].spines['top'].set_visible(False)
+                ax[segm+2].set_xticks([])
+                ax[segm+2].set_yticks([])
+                ax[segm+2].set_ylabel(str(segm*200+30))
+                ax[segm+2].plot(data.iloc[100:400,segm*int(200/dL[sweep])]+100, alpha = 0.6, linewidth = 2)
+            max_values = data.max(axis=0)
+            max_index = data.idxmax(axis=0).where(data.idxmax(axis=0) > 100, np.nan).replace(499, np.nan)
+            ax[0].plot(np.arange(len(max_values))*dL[sweep]+30, max_values, alpha = 0.6, linewidth = 2)
+            ax[0].set_xlabel('Distance from soma (um)', fontsize = 16)
+            ax[0].set_ylabel('Peak amplitude (mV)', fontsize = 16)
+            ax[1].plot(np.arange(len(max_index))*dL[sweep]+30, (max_index-100)*0.05, alpha = 0.6, linewidth = 2)
             ax[1].set_xlabel('Distance from soma (um)', fontsize = 16)
             ax[1].set_ylabel('Peak delay (ms)', fontsize = 16)
         ax.append(fig.add_subplot(gs[:, 0]))
