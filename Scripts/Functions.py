@@ -10,7 +10,10 @@ import matplotlib.pyplot as plt
 import matplotlib.lines as mlines
 import pycircstat as pcs
 import seaborn as sns
+import warnings
 import pandas as pd
+from pandas.errors import SettingWithCopyWarning
+warnings.simplefilter(action='ignore', category=(SettingWithCopyWarning))
 import numpy as np
 import os, neurom
 
@@ -704,8 +707,16 @@ def Plot_entrainment (data_frame, targets = None, MMR = False, subtract_ref = Fa
                         PA, modes, drift = Phase_Artifact(tar.loc[cell,'PM'],freq, bins = bins)
                         ax.set_ylabel('PA: '+ str(round(PA,1)) + 'deg\nSteps: '+ str(modes) +'\n', fontsize = 14)
                         all_results.append([PA, modes, drift, gft['MMR'].iloc[0]])
-            fig.tight_layout()  
+            fig.tight_layout()
+            if MMR:
+                path = 'MMR/' 
+            else:
+                path = 'VL/'
+            path += gfc['Cell_Type'].iloc[0] + '_' + str(gfc['Cell_ID'].iloc[0]) + '.png'
+            plt.savefig('../Results/Result_Plots/Single_Cell_Entrainment_Roseplots/' + path)         
+            
             plt.show()
+            plt.close()
     return pd.DataFrame(all_results)
             
 def Plot_entrainment_across (data_frame, show_all = True, mean = 'None', metric_tag = 'mean_vector_length'):
